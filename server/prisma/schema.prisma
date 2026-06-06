@@ -1,13 +1,143 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ParticipantRole {
+  OWNER
+  SIGNER
+  WITNESS
+  AUTHENTICATOR
+}
+
+enum DocumentStatus {
+  DRAFT
+  PENDING
+  PARTIALLY_SIGNED
+  COMPLETED
+  REJECTED
+}
+
+enum ParticipantStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+}
+
+enum AuditAction {
+  DOCUMENT_CREATED
+  PARTICIPANT_ADDED
+  SIGNED
+  WITNESSED
+  AUTHENTICATED
+  REJECTED
+  PDF_GENERATED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+
+  // Documents uploaded by this user
+  documents Document[]
+
+  // Documents where user is a participant
+  participants Participant[]
+
+  // Audit records performed by this user
+  auditLogs AuditLog[]
+
+  // Saved signature profile
+  signatureProfile SignatureProfile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Document {
+  id              String @id @default(uuid())
+
+  title           String
+
+  originalFileUrl String
+
+  signedFileUrl   String?
+
+  status          DocumentStatus @default(DRAFT)
+
+  ownerId         String
+
+  owner           User @relation(fields: [ownerId], references: [id])
+
+  participants    Participant[]
+
+  auditLogs       AuditLog[]
+
+  createdAt       DateTime @default(now())
+
+  updatedAt       DateTime @updatedAt
+}
+
+model Participant {
+  id         String @id @default(uuid())
+
+  role       ParticipantRole
+
+  status     ParticipantStatus @default(PENDING)
+
+  documentId String
+
+  userId     String
+
+  document   Document @relation(fields: [documentId], references: [id])
+
+  user       User @relation(fields: [userId], references: [id])
+
+  actedAt    DateTime?
+
+  createdAt  DateTime @default(now())
+}
+
+model SignatureProfile {
+  id         String @id @default(uuid())
+
+  userId     String @unique
+
+  user       User @relation(fields: [userId], references: [id])
+
+  fullName   String
+
+  initials   String?
+
+  fontFamily String
+
+  createdAt  DateTime @default(now())
+
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String @id @default(uuid())
+
+  action     AuditAction
+
+  documentId String
+
+  userId     String
+
+  document   Document @relation(fields: [documentId], references: [id])
+
+  user       User @relation(fields: [userId], references: [id])
+
+  ipAddress  String?
+
+  userAgent  String?
+
+  createdAt  DateTime @default(now())
 }
