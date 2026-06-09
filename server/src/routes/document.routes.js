@@ -8,6 +8,8 @@ import {
   uploadDocument,
   getMyDocuments,
   getDocumentById,
+  addParticipant,
+  getParticipants,
 } from "../controllers/document.controller.js";
 
 const router = express.Router();
@@ -26,9 +28,20 @@ router.get(
 );
 
 router.get(
+  "/:id/participants",
+  authMiddleware,
+  getParticipants
+);
+
+router.get(
   "/:id",
   authMiddleware,
   getDocumentById
 );
 
+router.post(
+  "/:id/participants",
+  authMiddleware,
+  addParticipant
+);
 export default router;
