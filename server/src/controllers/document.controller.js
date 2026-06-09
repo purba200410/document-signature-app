@@ -32,3 +32,64 @@ export const uploadDocument = async (
     });
   }
 };
+
+export const getMyDocuments = async (
+  req,
+  res
+) => {
+  try {
+    const documents =
+      await prisma.document.findMany({
+        where: {
+          ownerId: req.user.userId,
+        },
+
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    res.status(200).json({
+      documents,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+export const getDocumentById = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+
+    const document =
+      await prisma.document.findFirst({
+        where: {
+          id,
+          ownerId: req.user.userId,
+        },
+      });
+
+    if (!document) {
+      return res.status(404).json({
+        message: "Document not found",
+      });
+    }
+
+    res.status(200).json({
+      document,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
