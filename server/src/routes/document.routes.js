@@ -10,6 +10,7 @@ import {
   getDocumentById,
   addParticipant,
   getParticipants,
+   completeParticipantAction,
 } from "../controllers/document.controller.js";
 
 const router = express.Router();
@@ -19,6 +20,12 @@ router.post(
   authMiddleware,
   upload.single("document"),
   uploadDocument
+);
+
+router.post(
+  "/:id/complete",
+  authMiddleware,
+  completeParticipantAction
 );
 
 router.get(
