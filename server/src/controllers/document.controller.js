@@ -1,5 +1,7 @@
 import prisma from "../config/prisma.js";
-
+import path from "path";
+import { addSignatureToPdf }
+from "../services/pdf.service.js";
 /* =========================
    UPLOAD DOCUMENT
 ========================= */
@@ -273,6 +275,70 @@ export const completeParticipantAction = async (req, res) => {
       },
     });
 
+    let auditAction = "SIGNED";
+
+if (participant.role === "WITNESS") {
+  auditAction = "WITNESSED";
+}
+
+if (participant.role === "AUTHENTICATOR") {
+  auditAction = "AUTHENTICATED";
+}
+
+await prisma.auditLog.create({
+  data: {
+    action: auditAction,
+    documentId: id,
+    userId: req.user.userId,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  },
+});
+
+    if (participant.role === "SIGNER") {
+
+  const document =
+    await prisma.document.findUnique({
+      where: {
+        id,
+      },
+    });
+
+  const user =
+    await prisma.user.findUnique({
+      where: {
+        id: req.user.userId,
+      },
+      include: {
+        signatureProfile: true,
+      },
+    });
+
+  const signerName =
+    user.signatureProfile?.fullName ||
+    user.name;
+
+  const outputPath =
+    `signed/signed-${Date.now()}.pdf`;
+
+  await addSignatureToPdf(
+    document.originalFileUrl,
+    outputPath,
+    signerName
+  );
+
+  await prisma.document.update({
+    where: {
+      id,
+    },
+    data: {
+      signedFileUrl: outputPath,
+    },
+  });
+}
+
+
+
     const updatedParticipants =
   await prisma.participant.findMany({
     where: {
@@ -302,5 +368,44 @@ await prisma.document.update({
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getAuditLogs = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+
+    const logs =
+      await prisma.auditLog.findMany({
+        where: {
+          documentId: id,
+        },
+
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+
+    res.status(200).json({
+      logs,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
   }
 };

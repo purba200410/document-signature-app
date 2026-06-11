@@ -10,7 +10,8 @@ import {
   getDocumentById,
   addParticipant,
   getParticipants,
-   completeParticipantAction,
+  completeParticipantAction,
+  getAuditLogs,
 } from "../controllers/document.controller.js";
 
 const router = express.Router();
@@ -44,6 +45,12 @@ router.get(
   "/:id",
   authMiddleware,
   getDocumentById
+);
+
+router.get(
+  "/:id/audit",
+  authMiddleware,
+  getAuditLogs
 );
 
 router.post(
