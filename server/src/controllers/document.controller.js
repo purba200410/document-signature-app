@@ -1,7 +1,10 @@
 import prisma from "../config/prisma.js";
 import path from "path";
 import { addSignatureToPdf }
-from "../services/pdf.service.js";
+  from "../services/pdf.service.js";
+import jwt from "jsonwebtoken";
+import { generateInviteToken } from "../utils/invite.token";
+import { sendInvitationEmail } from "../utils/email.service";
 /* =========================
    UPLOAD DOCUMENT
 ========================= */
@@ -82,11 +85,14 @@ export const getDocumentById = async (req, res) => {
 /* =========================
    ADD PARTICIPANT (FIXED)
 ========================= */
+import { sendInvitationEmail } from "../utils/email.service";
+
 export const addParticipant = async (req, res) => {
   try {
     const { id } = req.params;
     const { email, role } = req.body;
 
+    // 1. Check document exists
     const document = await prisma.document.findUnique({
       where: { id },
     });
@@ -97,50 +103,43 @@ export const addParticipant = async (req, res) => {
       });
     }
 
+    // 2. Only owner can add participants
     if (document.ownerId !== req.user.userId) {
       return res.status(403).json({
         message: "Only owner can add participants",
       });
     }
 
+    // 3. Check if user exists (optional now)
     const user = await prisma.user.findUnique({
       where: { email },
     });
 
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found",
-      });
-    }
-
-    if (user.id === document.ownerId) {
-      return res.status(400).json({
-        message: "Owner cannot be a participant",
-      });
-    }
-
-    const existingParticipant =
-      await prisma.participant.findFirst({
-        where: {
-          documentId: id,
-          userId: user.id,
-        },
-      });
-
-    if (existingParticipant) {
-      return res.status(400).json({
-        message: "Participant already added",
-      });
-    }
-
-    const participant = await prisma.participant.create({
-      data: {
+    // 4. Prevent duplicate participant (by email OR userId)
+    const existingParticipant = await prisma.participant.findFirst({
+      where: {
         documentId: id,
-        userId: user.id,
-        role,
+        email: email,
       },
     });
 
+    if (existingParticipant) {
+      return res.status(400).json({
+        message: "Participant already invited",
+      });
+    }
+
+    // 5. Create participant (email-based system)
+    const participant = await prisma.participant.create({
+      data: {
+        documentId: id,
+        email,
+        role,
+        userId: user?.id || null,
+      },
+    });
+
+    // 6. Create audit log
     await prisma.auditLog.create({
       data: {
         action: "PARTICIPANT_ADDED",
@@ -149,24 +148,39 @@ export const addParticipant = async (req, res) => {
       },
     });
 
+    // 7. Update document status if needed
     if (document.status === "DRAFT") {
-  await prisma.document.update({
-    where: {
-      id,
-    },
-    data: {
-      status: "PENDING",
-    },
-  });
-}
+      await prisma.document.update({
+        where: { id },
+        data: { status: "PENDING" },
+      });
+    }
 
-    res.status(201).json({
-      message: "Participant added successfully",
+    // 8. Generate invite token
+    const token = jwt.sign(
+      {
+        email,
+        documentId: id,
+        participantId: participant.id,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "2d" }
+    );
+
+    const inviteLink = `${process.env.CLIENT_URL}/invite?token=${token}`;
+
+    // 9. Send invitation email
+    await sendInvitationEmail(email, inviteLink);
+
+    return res.status(201).json({
+      message: "Participant invited successfully",
       participant,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({
+      message: "Server error",
+    });
   }
 };
 
@@ -277,90 +291,90 @@ export const completeParticipantAction = async (req, res) => {
 
     let auditAction = "SIGNED";
 
-if (participant.role === "WITNESS") {
-  auditAction = "WITNESSED";
-}
+    if (participant.role === "WITNESS") {
+      auditAction = "WITNESSED";
+    }
 
-if (participant.role === "AUTHENTICATOR") {
-  auditAction = "AUTHENTICATED";
-}
+    if (participant.role === "AUTHENTICATOR") {
+      auditAction = "AUTHENTICATED";
+    }
 
-await prisma.auditLog.create({
-  data: {
-    action: auditAction,
-    documentId: id,
-    userId: req.user.userId,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  },
-});
+    await prisma.auditLog.create({
+      data: {
+        action: auditAction,
+        documentId: id,
+        userId: req.user.userId,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      },
+    });
 
     if (participant.role === "SIGNER") {
 
-  const document =
-    await prisma.document.findUnique({
-      where: {
-        id,
-      },
-    });
+      const document =
+        await prisma.document.findUnique({
+          where: {
+            id,
+          },
+        });
 
-  const user =
-    await prisma.user.findUnique({
-      where: {
-        id: req.user.userId,
-      },
-      include: {
-        signatureProfile: true,
-      },
-    });
+      const user =
+        await prisma.user.findUnique({
+          where: {
+            id: req.user.userId,
+          },
+          include: {
+            signatureProfile: true,
+          },
+        });
 
-  const signerName =
-    user.signatureProfile?.fullName ||
-    user.name;
+      const signerName =
+        user.signatureProfile?.fullName ||
+        user.name;
 
-  const outputPath =
-    `signed/signed-${Date.now()}.pdf`;
+      const outputPath =
+        `signed/signed-${Date.now()}.pdf`;
 
-  await addSignatureToPdf(
-    document.originalFileUrl,
-    outputPath,
-    signerName
-  );
+      await addSignatureToPdf(
+        document.originalFileUrl,
+        outputPath,
+        signerName
+      );
 
-  await prisma.document.update({
-    where: {
-      id,
-    },
-    data: {
-      signedFileUrl: outputPath,
-    },
-  });
-}
+      await prisma.document.update({
+        where: {
+          id,
+        },
+        data: {
+          signedFileUrl: outputPath,
+        },
+      });
+    }
 
 
 
     const updatedParticipants =
-  await prisma.participant.findMany({
-    where: {
-      documentId: id,
-    },
-  });
+      await prisma.participant.findMany({
+        where: {
+          documentId: id,
+        },
+      });
 
-const allCompleted =
-  updatedParticipants.every(
-    (p) => p.status === "COMPLETED"
-  );
+    const allCompleted =
+      updatedParticipants.every(
+        (p) => p.status === "COMPLETED"
+      );
 
-await prisma.document.update({
-  where: {
-    id,
-  },
-  data: {
-    status: allCompleted
-      ? "COMPLETED"
-      : "PARTIALLY_SIGNED",
-  },
-});
+    await prisma.document.update({
+      where: {
+        id,
+      },
+      data: {
+        status: allCompleted
+          ? "COMPLETED"
+          : "PARTIALLY_SIGNED",
+      },
+    });
 
     res.status(200).json({
       message: `${participant.role} completed successfully`,
@@ -409,3 +423,37 @@ export const getAuditLogs = async (
     });
   }
 };
+
+export const downloadSignedDocument =
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const document =
+        await prisma.document.findUnique({
+          where: { id },
+        });
+
+      if (!document) {
+        return res.status(404).json({
+          message: "Document not found",
+        });
+      }
+
+      if (!document.signedFileUrl) {
+        return res.status(400).json({
+          message:
+            "Document not signed yet",
+        });
+      }
+
+      return res.download(
+        document.signedFileUrl
+      );
+    } catch (error) {
+      console.error(error);
+
+      res.status(500).json({
+        message: "Server error",
+      });
+    }
+  };

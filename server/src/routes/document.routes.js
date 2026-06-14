@@ -12,6 +12,7 @@ import {
   getParticipants,
   completeParticipantAction,
   getAuditLogs,
+  downloadSignedDocument,
 } from "../controllers/document.controller.js";
 
 const router = express.Router();
@@ -51,6 +52,11 @@ router.get(
   "/:id/audit",
   authMiddleware,
   getAuditLogs
+);
+router.get(
+  "/:id/download",
+  authMiddleware,
+  downloadSignedDocument
 );
 
 router.post(

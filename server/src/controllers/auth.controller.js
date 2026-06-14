@@ -92,3 +92,48 @@ export const login = async (req, res) => {
     });
   }
 };
+
+export const acceptInvite = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    // 1. Validate secret first
+    const secret = process.env.JWT_SECRET;
+
+    if (!secret) {
+      return res.status(500).json({
+        message: "JWT secret not configured",
+      });
+    }
+
+    // 2. Verify token
+    const decoded = jwt.verify(token, secret);
+
+    const { email, participantId } = decoded;
+
+    // 3. Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    // 4. Link participant if user exists
+    if (user) {
+      await prisma.participant.update({
+        where: { id: participantId },
+        data: {
+          userId: user.id,
+        },
+      });
+    }
+
+    return res.json({
+      message: "Invite accepted successfully",
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(400).json({
+      error: "Invalid or expired invite",
+    });
+  }
+};

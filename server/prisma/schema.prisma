@@ -39,10 +39,10 @@ enum AuditAction {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
+  id       String @id @default(uuid())
+  name     String
+  email    String @unique
+  password String
 
   // Documents uploaded by this user
   documents Document[]
@@ -61,83 +61,102 @@ model User {
 }
 
 model Document {
-  id              String @id @default(uuid())
+  id String @id @default(uuid())
 
-  title           String
+  title String
 
   originalFileUrl String
 
-  signedFileUrl   String?
+  signedFileUrl String?
 
-  status          DocumentStatus @default(DRAFT)
+  status DocumentStatus @default(DRAFT)
 
-  ownerId         String
+  ownerId String
 
-  owner           User @relation(fields: [ownerId], references: [id])
+  owner User @relation(fields: [ownerId], references: [id])
 
-  participants    Participant[]
+  participants Participant[]
 
-  auditLogs       AuditLog[]
+  auditLogs          AuditLog[]
+  documentSignatures DocumentSignature[]
+  createdAt          DateTime            @default(now())
 
-  createdAt       DateTime @default(now())
-
-  updatedAt       DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 model Participant {
-  id         String @id @default(uuid())
+  id String @id @default(uuid())
 
-  role       ParticipantRole
+  role ParticipantRole
 
-  status     ParticipantStatus @default(PENDING)
+  status ParticipantStatus @default(PENDING)
+
+  email String
 
   documentId String
 
-  userId     String
+  userId String?
 
-  document   Document @relation(fields: [documentId], references: [id])
+  document Document @relation(fields: [documentId], references: [id])
 
-  user       User @relation(fields: [userId], references: [id])
+  user               User?               @relation(fields: [userId], references: [id])
+  documentSignatures DocumentSignature[]
+  actedAt            DateTime?
 
-  actedAt    DateTime?
-
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 model SignatureProfile {
-  id         String @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId     String @unique
+  userId String @unique
 
-  user       User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
-  fullName   String
+  fullName String
 
-  initials   String?
+  initials String?
 
   fontFamily String
 
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  updatedAt  DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 model AuditLog {
-  id         String @id @default(uuid())
+  id String @id @default(uuid())
 
-  action     AuditAction
+  action AuditAction
 
   documentId String
 
-  userId     String
+  userId String
 
-  document   Document @relation(fields: [documentId], references: [id])
+  document Document @relation(fields: [documentId], references: [id])
 
-  user       User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
-  ipAddress  String?
+  ipAddress String?
 
-  userAgent  String?
+  userAgent String?
 
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+}
+
+model DocumentSignature {
+  id String @id @default(uuid())
+
+  documentId    String
+  participantId String
+
+  signedAt DateTime @default(now())
+
+  signatureData String? // base64 or drawn signature
+  pageNumber    Int?
+  positionX     Float?
+  positionY     Float?
+
+  document    Document    @relation(fields: [documentId], references: [id])
+  participant Participant @relation(fields: [participantId], references: [id])
 }
