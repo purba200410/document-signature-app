@@ -17,3 +17,14 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Uploaded documents
+uploads/
+
+# Generated signed PDFs
+signed/
+
+# Optional: keep folder structure but ignore contents
+uploads/*
+signed/*
+!.gitkeep
