@@ -12,6 +12,8 @@ import Profile from "./pages/dashboard/Profile";
 import DocumentDetails from "./pages/dashboard/DocumentDetails";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
+import AssignedDocuments from "./pages/dashboard/AssignedDocuments";
+import InviteAccept from "./pages/dashboard/InviteAccept";
 
 function App() {
   return (
@@ -51,6 +53,14 @@ function App() {
           <Route
            path="/documents/:id"
           element={<DocumentDetails />}
+          />
+          <Route
+  path="/assigned"
+  element={<AssignedDocuments />}
+/>
+          <Route
+            path="/invite"
+            element={<InviteAccept />}
           />
       </Routes>
     </BrowserRouter>

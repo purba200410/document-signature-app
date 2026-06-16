@@ -6,6 +6,15 @@ import prisma from "../config/prisma.js";
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    const strongPassword =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+
+if (!strongPassword.test(password)) {
+  return res.status(400).json({
+    message:
+      "Password must contain uppercase, lowercase, number and special character",
+  });
+}
 
     const existingUser = await prisma.user.findUnique({
       where: { email },

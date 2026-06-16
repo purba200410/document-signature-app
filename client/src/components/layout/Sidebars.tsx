@@ -2,7 +2,8 @@ import {
   LayoutDashboard,
   Upload,
   FileText,
-  User
+  User,
+  ClipboardCheck
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -49,6 +50,13 @@ export default function Sidebar() {
           <User size={20} />
           Profile
         </NavLink>
+        <NavLink
+  to="/assigned"
+  className={linkClass}
+>
+  <ClipboardCheck size={20} />
+  Assigned Documents
+</NavLink>
       </nav>
     </aside>
   );

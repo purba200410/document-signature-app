@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import API from "../../services/api";
 
+
 interface Document {
   id: string;
   title: string;
@@ -12,12 +13,14 @@ interface Document {
 
 interface Participant {
   id: string;
+  email?: string;
   role: string;
   status: string;
   user: {
+    id?: string;
     name: string;
     email: string;
-  };
+  } | null;
 }
 
 interface AuditLog {
@@ -31,6 +34,7 @@ interface AuditLog {
 }
 
 export default function DocumentDetails() {
+  
   const { id } = useParams();
 
   const [email, setEmail] = useState("");
@@ -40,6 +44,10 @@ export default function DocumentDetails() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [myParticipant, setMyParticipant] = useState<any>(null);
+
 
   useEffect(() => {
     if (id) loadData();
@@ -47,15 +55,34 @@ export default function DocumentDetails() {
 
   const loadData = async () => {
     try {
-      const [docRes, participantRes, auditRes] = await Promise.all([
-        API.get(`/docs/${id}`),
-        API.get(`/docs/${id}/participants`),
-        API.get(`/docs/${id}/audit`),
-      ]);
+      const [docRes, participantRes, auditRes, profileRes] =
+      await Promise.all([
+    API.get(`/docs/${id}`),
+    API.get(`/docs/${id}/participants`),
+    API.get(`/docs/${id}/audit`),
+    API.get("/auth/profile"),
+  ]);
 
       setDocument(docRes.data.document);
       setParticipants(participantRes.data.participants);
       setLogs(auditRes.data.logs);
+      const user = profileRes.data.user;
+
+setCurrentUser(user);
+
+const participant =
+  participantRes.data.participants.find(
+    (p: any) => p.user?.id === user.userId
+  ) || null;
+
+setMyParticipant(participant);
+
+if (
+  docRes.data.document.ownerId ===
+  user.userId
+) {
+  setIsOwner(true);
+}
     } catch (error) {
       console.error(error);
     } finally {
@@ -78,13 +105,58 @@ export default function DocumentDetails() {
       alert("Failed to add participant");
     }
   };
+  const deleteParticipant = async (
+  participantId: string
+) => {
+  const confirmed = window.confirm(
+    "Remove this participant?"
+  );
 
-  const handleDownload = () => {
-    window.open(
-      `http://localhost:5000/api/docs/${id}/download`,
-      "_blank"
+  if (!confirmed) return;
+
+  try {
+    await API.delete(
+      `/docs/participants/${participantId}`
     );
-  };
+
+    alert("Participant removed");
+
+    loadData();
+  } catch (error) {
+    console.error(error);
+    alert("Failed to remove participant");
+  }
+};
+
+  const handleDownload = async () => {
+  try {
+    const response = await API.get(
+      `/docs/${id}/download`,
+      {
+        responseType: "blob",
+      }
+    );
+
+    const url = window.URL.createObjectURL(
+      new Blob([response.data])
+    );
+
+    const link = window.document.createElement("a");
+
+    link.href = url;
+    link.download = `${document?.title}.pdf`;
+
+    window.document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error(error);
+    alert("Download failed");
+  }
+};
 
   if (loading) {
     return <h2>Loading...</h2>;
@@ -163,19 +235,37 @@ export default function DocumentDetails() {
                 <th className="text-left p-2">Email</th>
                 <th className="text-left p-2">Role</th>
                 <th className="text-left p-2">Status</th>
+                <th className="text-left p-2">Action</th>
               </tr>
             </thead>
 
             <tbody>
-              {participants.map((p) => (
-                <tr key={p.id} className="border-t">
-                  <td className="p-2">{p.user.name}</td>
-                  <td className="p-2">{p.user.email}</td>
-                  <td className="p-2">{p.role}</td>
-                  <td className="p-2">{p.status}</td>
-                </tr>
-              ))}
-            </tbody>
+  {participants.map((p) => (
+    <tr key={p.id} className="border-t">
+      <td className="p-2">
+        {p.user?.name || "Not Registered"}
+      </td>
+
+      <td className="p-2">
+        {p.user?.email || p.email || "No Email"}
+      </td>
+
+      <td className="p-2">{p.role}</td>
+
+      <td className="p-2">{p.status}</td>
+      <td className="p-2">
+        {isOwner && (
+        <button
+          onClick={() => deleteParticipant(p.id)}
+          className="bg-red-600 text-white px-3 py-1 rounded"
+        >
+          Remove
+        </button>
+        )}
+      </td>
+    </tr>
+  ))}
+</tbody>
           </table>
         )}
       </div>

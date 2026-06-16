@@ -3,8 +3,8 @@ import path from "path";
 import { addSignatureToPdf }
   from "../services/pdf.service.js";
 import jwt from "jsonwebtoken";
-import { generateInviteToken } from "../utils/invite.token";
-import { sendInvitationEmail } from "../utils/email.service";
+import { generateInviteToken } from "../utils/invite.token.js";
+import { sendInvitationEmail } from "../utils/email.service.js";
 /* =========================
    UPLOAD DOCUMENT
 ========================= */
@@ -62,11 +62,8 @@ export const getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const document = await prisma.document.findFirst({
-      where: {
-        id,
-        ownerId: req.user.userId,
-      },
+    const document = await prisma.document.findUnique({
+      where: { id },
     });
 
     if (!document) {
@@ -75,17 +72,41 @@ export const getDocumentById = async (req, res) => {
       });
     }
 
-    res.status(200).json({ document });
+    const isOwner =
+      document.ownerId === req.user.userId;
+
+    const participant =
+      await prisma.participant.findFirst({
+        where: {
+          documentId: id,
+          userId: req.user.userId,
+        },
+      });
+
+    if (!isOwner && !participant) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    res.status(200).json({
+      document,
+      isOwner,
+      participant,
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server error" });
+
+    res.status(500).json({
+      message: "Server error",
+    });
   }
 };
 
 /* =========================
    ADD PARTICIPANT (FIXED)
 ========================= */
-import { sendInvitationEmail } from "../utils/email.service";
+
 
 export const addParticipant = async (req, res) => {
   try {
@@ -157,20 +178,22 @@ export const addParticipant = async (req, res) => {
     }
 
     // 8. Generate invite token
-    const token = jwt.sign(
-      {
-        email,
-        documentId: id,
-        participantId: participant.id,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "2d" }
-    );
+const token = generateInviteToken({
+  email,
+  documentId: id,
+  participantId: participant.id,
+});
 
-    const inviteLink = `${process.env.CLIENT_URL}/invite?token=${token}`;
+const inviteLink = `${process.env.CLIENT_URL}/invite?token=${token}`;
 
     // 9. Send invitation email
-    await sendInvitationEmail(email, inviteLink);
+    console.log("Invite Link:", inviteLink);
+console.log("Sending email to:", email);
+
+await sendInvitationEmail(
+  email,
+  inviteLink
+);
 
     return res.status(201).json({
       message: "Participant invited successfully",
@@ -279,103 +302,76 @@ export const completeParticipantAction = async (req, res) => {
       }
     }
 
-    await prisma.participant.update({
-      where: {
-        id: participant.id,
-      },
-      data: {
-        status: "COMPLETED",
-        actedAt: new Date(),
+    const document = await prisma.document.findUnique({
+      where: { id },
+    });
+
+    if (!document) {
+      return res.status(404).json({
+        message: "Document not found",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: {
+        signatureProfile: true,
       },
     });
 
-    let auditAction = "SIGNED";
+    const signerName = user.signatureProfile?.fullName || user.name;
+    const outputPath = `signed/signed-${Date.now()}.pdf`;
 
-    if (participant.role === "WITNESS") {
-      auditAction = "WITNESSED";
-    }
+    const signatureIndex = allParticipants.filter(
+      (p) => p.status === "COMPLETED"
+    ).length;
 
-    if (participant.role === "AUTHENTICATOR") {
-      auditAction = "AUTHENTICATED";
-    }
+    await addSignatureToPdf(
+      document.signedFileUrl || document.originalFileUrl,
+      outputPath,
+      signerName,
+      participant.role,
+      signatureIndex
+    );
 
-    await prisma.auditLog.create({
-      data: {
-        action: auditAction,
-        documentId: id,
-        userId: req.user.userId,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-      },
-    });
+    const allCompleted = allParticipants.every(
+      (p) => p.id === participant.id || p.status === "COMPLETED"
+    );
 
-    if (participant.role === "SIGNER") {
+    const auditAction =
+      participant.role === "WITNESS"
+        ? "WITNESSED"
+        : participant.role === "AUTHENTICATOR"
+        ? "AUTHENTICATED"
+        : "SIGNED";
 
-      const document =
-        await prisma.document.findUnique({
-          where: {
-            id,
-          },
-        });
-
-      const user =
-        await prisma.user.findUnique({
-          where: {
-            id: req.user.userId,
-          },
-          include: {
-            signatureProfile: true,
-          },
-        });
-
-      const signerName =
-        user.signatureProfile?.fullName ||
-        user.name;
-
-      const outputPath =
-        `signed/signed-${Date.now()}.pdf`;
-
-      await addSignatureToPdf(
-        document.originalFileUrl,
-        outputPath,
-        signerName
-      );
-
-      await prisma.document.update({
-        where: {
-          id,
+    await prisma.$transaction([
+      prisma.participant.update({
+        where: { id: participant.id },
+        data: {
+          status: "COMPLETED",
+          actedAt: new Date(),
         },
+      }),
+      prisma.auditLog.create({
+        data: {
+          action: auditAction,
+          documentId: id,
+          userId: req.user.userId,
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        },
+      }),
+      prisma.document.update({
+        where: { id },
         data: {
           signedFileUrl: outputPath,
+          status: allCompleted ? "COMPLETED" : "PARTIALLY_SIGNED",
         },
-      });
-    }
+      }),
+    ]);
 
-
-
-    const updatedParticipants =
-      await prisma.participant.findMany({
-        where: {
-          documentId: id,
-        },
-      });
-
-    const allCompleted =
-      updatedParticipants.every(
-        (p) => p.status === "COMPLETED"
-      );
-
-    await prisma.document.update({
-      where: {
-        id,
-      },
-      data: {
-        status: allCompleted
-          ? "COMPLETED"
-          : "PARTIALLY_SIGNED",
-      },
-    });
-
+    console.log("PDF generated and database updated successfully:", outputPath);
     res.status(200).json({
       message: `${participant.role} completed successfully`,
     });
@@ -457,3 +453,130 @@ export const downloadSignedDocument =
       });
     }
   };
+  export const getDashboardStats = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const totalDocuments =
+      await prisma.document.count({
+        where: {
+          ownerId: userId,
+        },
+      });
+
+    const completedDocuments =
+      await prisma.document.count({
+        where: {
+          ownerId: userId,
+          status: "COMPLETED",
+        },
+      });
+
+    const pendingDocuments =
+      await prisma.document.count({
+        where: {
+          ownerId: userId,
+          NOT: {
+            status: "COMPLETED",
+          },
+        },
+      });
+
+    res.json({
+      totalDocuments,
+      completedDocuments,
+      pendingDocuments,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+export const getAssignedDocuments = async (
+  req,
+  res
+) => {
+  try {
+    const documents =
+      await prisma.participant.findMany({
+        where: {
+          userId: req.user.userId,
+        },
+        include: {
+          document: true,
+        },
+      });
+
+    res.json({
+      documents,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+export const deleteParticipant = async (req, res) => {
+  try {
+    const { participantId } = req.params;
+
+    const participant =
+      await prisma.participant.findUnique({
+        where: {
+          id: participantId,
+        },
+        include: {
+          document: true,
+        },
+      });
+
+    if (!participant) {
+      return res.status(404).json({
+        message: "Participant not found",
+      });
+    }
+
+    // Only owner can delete
+    if (
+      participant.document.ownerId !==
+      req.user.userId
+    ) {
+      return res.status(403).json({
+        message: "Unauthorized",
+      });
+    }
+
+    await prisma.participant.delete({
+      where: {
+        id: participantId,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: "PARTICIPANT_REMOVED",
+        documentId:
+          participant.documentId,
+        userId: req.user.userId,
+      },
+    });
+
+    return res.json({
+      message:
+        "Participant removed successfully",
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
+  }
+};

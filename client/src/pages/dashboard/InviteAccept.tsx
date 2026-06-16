@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import API from "../services/api";
+import API from "../../services/api";
 
 export default function InviteAccept() {
   const [params] = useSearchParams();

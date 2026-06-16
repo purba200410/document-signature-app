@@ -13,6 +13,9 @@ import {
   completeParticipantAction,
   getAuditLogs,
   downloadSignedDocument,
+  getDashboardStats,
+  getAssignedDocuments,
+  deleteParticipant,
 } from "../controllers/document.controller.js";
 
 const router = express.Router();
@@ -43,6 +46,18 @@ router.get(
 );
 
 router.get(
+  "/dashboard/stats",
+  authMiddleware,
+  getDashboardStats
+);
+
+router.get(
+  "/assigned",
+  authMiddleware,
+  getAssignedDocuments
+);
+
+router.get(
   "/:id",
   authMiddleware,
   getDocumentById
@@ -64,4 +79,11 @@ router.post(
   authMiddleware,
   addParticipant
 );
+
+router.delete(
+  "/participants/:participantId",
+  authMiddleware,
+  deleteParticipant
+);
+
 export default router;

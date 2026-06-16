@@ -3,44 +3,73 @@ import path from "path";
 import { PDFDocument } from "pdf-lib";
 
 export const addSignatureToPdf = async (
-inputPath,
-outputPath,
-signerName
+  inputPath,
+  outputPath,
+  signerName,
+  role = "SIGNER",
+  index = 0
 ) => {
-const dir = path.dirname(outputPath);
+  try {
+    console.log("INPUT:", inputPath);
+    console.log("OUTPUT:", outputPath);
 
-if (!fs.existsSync(dir)) {
-fs.mkdirSync(dir, { recursive: true });
-}
+    const dir = path.dirname(outputPath);
 
-const existingPdfBytes =
-fs.readFileSync(inputPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, {
+        recursive: true,
+      });
+    }
 
-const pdfDoc =
-await PDFDocument.load(
-existingPdfBytes
-);
+    const existingPdfBytes =
+      fs.readFileSync(inputPath);
 
-const pages = pdfDoc.getPages();
+    const pdfDoc =
+      await PDFDocument.load(
+        existingPdfBytes
+      );
 
-const firstPage = pages[0];
+    const firstPage =
+      pdfDoc.getPages()[0];
 
-firstPage.drawText(
-`Signed by: ${signerName}`,
-{
-x: 50,
-y: 100,
-size: 18,
-}
-);
+    let prefix = "Signed by";
+    if (role === "WITNESS") {
+      prefix = "Witnessed by";
+    } else if (role === "AUTHENTICATOR") {
+      prefix = "Authenticated by";
+    }
 
-const pdfBytes =
-await pdfDoc.save();
+    const yPosition = 100 + index * 40;
 
-fs.writeFileSync(
-outputPath,
-pdfBytes
-);
+    firstPage.drawText(
+      `${prefix}: ${signerName}`,
+      {
+        x: 50,
+        y: yPosition,
+        size: 18,
+      }
+    );
 
-return outputPath;
+    const pdfBytes =
+      await pdfDoc.save();
+
+    fs.writeFileSync(
+      outputPath,
+      pdfBytes
+    );
+
+    console.log(
+      "SIGNED FILE WRITTEN:",
+      outputPath
+    );
+
+    return outputPath;
+  } catch (err) {
+    console.error(
+      "PDF SIGN ERROR:",
+      err
+    );
+
+    throw err;
+  }
 };
