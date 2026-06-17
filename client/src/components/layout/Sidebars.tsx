@@ -3,7 +3,7 @@ import {
   Upload,
   FileText,
   User,
-  ClipboardCheck
+  ClipboardCheck,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -14,49 +14,32 @@ export default function Sidebar() {
 
   return (
     <aside className="w-72 bg-slate-900 text-white p-5">
-      <h1 className="text-2xl font-bold mb-10">
-        DocSign
-      </h1>
+      <h1 className="text-2xl font-bold mb-10">DocSign</h1>
 
       <nav className="space-y-2">
-        <NavLink
-          to="/dashboard"
-          className={linkClass}
-        >
+        <NavLink to="/dashboard" className={linkClass}>
           <LayoutDashboard size={20} />
           Dashboard
         </NavLink>
 
-        <NavLink
-          to="/upload"
-          className={linkClass}
-        >
+        <NavLink to="/upload" className={linkClass}>
           <Upload size={20} />
           Upload
         </NavLink>
 
-        <NavLink
-          to="/documents"
-          className={linkClass}
-        >
+        <NavLink to="/documents" className={linkClass}>
           <FileText size={20} />
           Documents
         </NavLink>
 
-        <NavLink
-          to="/profile"
-          className={linkClass}
-        >
+        <NavLink to="/profile" className={linkClass}>
           <User size={20} />
           Profile
         </NavLink>
-        <NavLink
-  to="/assigned"
-  className={linkClass}
->
-  <ClipboardCheck size={20} />
-  Assigned Documents
-</NavLink>
+        <NavLink to="/assigned" className={linkClass}>
+          <ClipboardCheck size={20} />
+          Assigned Documents
+        </NavLink>
       </nav>
     </aside>
   );

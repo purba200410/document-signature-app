@@ -1,29 +1,29 @@
 import nodemailer from "nodemailer";
 console.log("EMAIL SERVICE LOADED");
 export const sendInvitationEmail = async (
-  email,
-  link
+    email,
+    link
 ) => {
     console.log("FUNCTION CALLED WITH:", {
-    email,
-    link,
-  });
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+        email,
+        link,
+    });
+    const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+        },
+    });
 
-  console.log("Recipient email:", email);
+    console.log("Recipient email:", email);
     console.log("Recipient email:", email);
     console.log("EMAIL_USER:", process.env.EMAIL_USER);
-  await transporter.sendMail({
-  from: `"Doc Sign App" <${process.env.EMAIL_USER}>`,
-  to: email,
-  subject: "📄 Digital Signature Request",
-  html: `
+    await transporter.sendMail({
+        from: `"Doc Sign App" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "📄 Digital Signature Request",
+        html: `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
 
   <div style="background: #2563eb; color: white; padding: 24px; text-align: center;">
@@ -88,5 +88,5 @@ export const sendInvitationEmail = async (
 
 </div>
 `,
-});
+    });
 };

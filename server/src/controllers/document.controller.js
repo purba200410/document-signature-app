@@ -178,22 +178,22 @@ export const addParticipant = async (req, res) => {
     }
 
     // 8. Generate invite token
-const token = generateInviteToken({
-  email,
-  documentId: id,
-  participantId: participant.id,
-});
+    const token = generateInviteToken({
+      email,
+      documentId: id,
+      participantId: participant.id,
+    });
 
-const inviteLink = `${process.env.CLIENT_URL}/invite?token=${token}`;
+    const inviteLink = `${process.env.CLIENT_URL}/invite?token=${token}`;
 
     // 9. Send invitation email
     console.log("Invite Link:", inviteLink);
-console.log("Sending email to:", email);
+    console.log("Sending email to:", email);
 
-await sendInvitationEmail(
-  email,
-  inviteLink
-);
+    await sendInvitationEmail(
+      email,
+      inviteLink
+    );
 
     return res.status(201).json({
       message: "Participant invited successfully",
@@ -342,8 +342,8 @@ export const completeParticipantAction = async (req, res) => {
       participant.role === "WITNESS"
         ? "WITNESSED"
         : participant.role === "AUTHENTICATOR"
-        ? "AUTHENTICATED"
-        : "SIGNED";
+          ? "AUTHENTICATED"
+          : "SIGNED";
 
     await prisma.$transaction([
       prisma.participant.update({
@@ -453,7 +453,7 @@ export const downloadSignedDocument =
       });
     }
   };
-  export const getDashboardStats = async (req, res) => {
+export const getDashboardStats = async (req, res) => {
   try {
     const userId = req.user.userId;
 

@@ -6,6 +6,8 @@ import {
   acceptInvite,
 } from "../controllers/auth.controller.js";
 
+import prisma from "../config/prisma.js";
+
 const router = express.Router();
 
 router.post("/register", register);
@@ -17,11 +19,33 @@ router.post("/accept-invite", acceptInvite);
 router.get(
   "/profile",
   authMiddleware,
-  (req, res) => {
-    res.json({
-      message: "Protected route",
-      user: req.user,
-    });
+  async (req, res) => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
+      
+      if (!user) {
+        return res.status(404).json({
+          message: "User not found",
+        });
+      }
+
+      res.json({
+        message: "Protected route",
+        user,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        message: "Server error",
+      });
+    }
   }
 );
 
