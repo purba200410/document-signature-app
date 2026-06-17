@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-console.log("EMAIL SERVICE LOADED");
+
 export const sendInvitationEmail = async (
     email,
     link
@@ -16,9 +16,7 @@ export const sendInvitationEmail = async (
         },
     });
 
-    console.log("Recipient email:", email);
-    console.log("Recipient email:", email);
-    console.log("EMAIL_USER:", process.env.EMAIL_USER);
+   
     await transporter.sendMail({
         from: `"Doc Sign App" <${process.env.EMAIL_USER}>`,
         to: email,

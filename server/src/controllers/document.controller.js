@@ -5,6 +5,13 @@ import { addSignatureToPdf }
 import jwt from "jsonwebtoken";
 import { generateInviteToken } from "../utils/invite.token.js";
 import { sendInvitationEmail } from "../utils/email.service.js";
+import fs from "fs";
+import { supabase } from "../config/supabase.js";
+import { uploadPdfToStorage }
+  from "../services/storage.service.js";
+import {
+  uploadLocalPdfToStorage,
+} from "../services/storage.service.js";
 /* =========================
    UPLOAD DOCUMENT
 ========================= */
@@ -15,11 +22,18 @@ export const uploadDocument = async (req, res) => {
         message: "No file uploaded",
       });
     }
+const fileName =
+  `documents/${Date.now()}-${req.file.originalname}`;
 
+const publicUrl =
+  await uploadPdfToStorage(
+    req.file.buffer,
+    fileName
+  );
     const document = await prisma.document.create({
       data: {
         title: req.file.originalname,
-        originalFileUrl: req.file.path,
+        originalFileUrl: publicUrl,
         ownerId: req.user.userId,
       },
     });
@@ -334,6 +348,17 @@ export const completeParticipantAction = async (req, res) => {
       signatureIndex
     );
 
+
+    const signedPdfUrl =
+  await uploadLocalPdfToStorage(
+    outputPath,
+    `signed/signed-${Date.now()}.pdf`
+  );
+
+if (fs.existsSync(outputPath)) {
+  fs.unlinkSync(outputPath);
+}
+
     const allCompleted = allParticipants.every(
       (p) => p.id === participant.id || p.status === "COMPLETED"
     );
@@ -365,7 +390,7 @@ export const completeParticipantAction = async (req, res) => {
       prisma.document.update({
         where: { id },
         data: {
-          signedFileUrl: outputPath,
+          signedFileUrl: signedPdfUrl,
           status: allCompleted ? "COMPLETED" : "PARTIALLY_SIGNED",
         },
       }),
@@ -420,39 +445,31 @@ export const getAuditLogs = async (
   }
 };
 
-export const downloadSignedDocument =
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-      const document =
-        await prisma.document.findUnique({
-          where: { id },
-        });
+export const downloadSignedDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-      if (!document) {
-        return res.status(404).json({
-          message: "Document not found",
-        });
-      }
+    const document = await prisma.document.findUnique({
+      where: { id },
+    });
 
-      if (!document.signedFileUrl) {
-        return res.status(400).json({
-          message:
-            "Document not signed yet",
-        });
-      }
-
-      return res.download(
-        document.signedFileUrl
-      );
-    } catch (error) {
-      console.error(error);
-
-      res.status(500).json({
-        message: "Server error",
+    if (!document || !document.signedFileUrl) {
+      return res.status(404).json({
+        message: "Signed document not found",
       });
     }
-  };
+
+    return res.redirect(document.signedFileUrl);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+
 export const getDashboardStats = async (req, res) => {
   try {
     const userId = req.user.userId;

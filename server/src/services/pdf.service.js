@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import axios from "axios";
 import { PDFDocument } from "pdf-lib";
 
 export const addSignatureToPdf = async (
@@ -21,32 +22,65 @@ export const addSignatureToPdf = async (
       });
     }
 
-    const existingPdfBytes =
-      fs.readFileSync(inputPath);
+    let existingPdfBytes;
+
+    // Local file
+    if (
+      inputPath.startsWith("uploads") ||
+      inputPath.startsWith("signed")
+    ) {
+      existingPdfBytes =
+        fs.readFileSync(inputPath);
+    }
+
+    // Supabase URL
+    else if (
+      inputPath.startsWith("http")
+    ) {
+      const response =
+        await axios.get(inputPath, {
+          responseType: "arraybuffer",
+        });
+
+      existingPdfBytes =
+        response.data;
+    }
+
+    else {
+      throw new Error(
+        "Unsupported PDF source"
+      );
+    }
 
     const pdfDoc =
       await PDFDocument.load(
         existingPdfBytes
       );
 
-    const firstPage =
-      pdfDoc.getPages()[0];
+    const pages = pdfDoc.getPages();
+
+    const lastPage =
+      pages[pages.length - 1];
 
     let prefix = "Signed by";
+
     if (role === "WITNESS") {
       prefix = "Witnessed by";
-    } else if (role === "AUTHENTICATOR") {
+    }
+
+    if (role === "AUTHENTICATOR") {
       prefix = "Authenticated by";
     }
 
-    const yPosition = 100 + index * 40;
+    const yPosition =
+      50 + index * 40;
 
-    firstPage.drawText(
+    lastPage.drawText(
       `${prefix}: ${signerName}`,
       {
-        x: 50,
+        x: 300,
         y: yPosition,
-        size: 18,
+        size: 14,
       }
     );
 
