@@ -44,9 +44,9 @@ export default function DocumentDetails() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [setCurrentUser] = useState<any>(null);
   const [isOwner, setIsOwner] = useState(false);
-  const [myParticipant, setMyParticipant] = useState<any>(null);
+  const [setMyParticipant] = useState<any>(null);
 
 
   useEffect(() => {
